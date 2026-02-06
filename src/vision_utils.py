@@ -3,83 +3,109 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
-def overlay(overlay_image, asset, face_landmarks, anchor_idx, ratio_to_eyes=1.0, anchor_point="middle"):
-    if asset is None: return overlay_image
-    h, w, _ = overlay_image.shape
+def landmarker_options(running_mode):
+    match running_mode:
+        case "Video":
+            mode = VisionRunningMode.VIDEO
+        case "Image":
+            mode = VisionRunningMode.IMAGE
+        case _:
+            mode = VisionRunningMode.IMAGE
+    options = FaceLandmarkerOptions(
+        base_options=BaseOptions(model_asset_path=model_path),
+        running_mode= mode
+    )
+    return options
 
-    l_eye, r_eye = face_landmarks[33], face_landmarks[263]
-    anchor = face_landmarks[anchor_idx]
-
-    ax, ay = int(anchor.x * w), int(anchor.y * h)
-    lx, ly = l_eye.x * w, l_eye.y * h
-    rx, ry = r_eye.x * w, r_eye.y * h
-
-    eye_dist_px = math.sqrt((rx - lx) ** 2 + (ry - ly) ** 2)
-    angle = math.degrees(math.atan2(ry - ly, rx - lx))
-
-    # Resize asset
-    target_w = int(eye_dist_px * ratio_to_eyes)
-    ah, aw = asset.shape[:2]
-    target_h = int(target_w * (ah / aw))
-    resized = cv2.resize(asset, (target_w, target_h))
-
-    if anchor_point == "top_left":
-        px, py = 0, 0
-    elif anchor_point == "top_middle":
-        px, py = target_w // 2, 0
-    elif anchor_point == "top_right":
-        px, py = target_w, 0
-    elif anchor_point == "middle_left":
-        px, py = 0, target_h // 2
-    elif anchor_point == "middle":
-        px, py = target_w // 2, target_h // 2
-    elif anchor_point == "middle_right":
-        px, py = target_w, target_h // 2
-    elif anchor_point == "bottom_left":
-        px, py = 0, target_h
-    elif anchor_point == "bottom_middle":
-        px, py = target_w // 2, target_h
-    elif anchor_point == "bottom_right":
-        px, py = target_w, target_h
-    else:
-        px, py = target_w // 2, target_h // 2
-
-    M = cv2.getRotationMatrix2D((target_w // 2, target_h // 2), -angle, 1.0)
-    cos, sin = np.abs(M[0, 0]), np.abs(M[0, 1])
-    nW, nH = int((target_h * sin) + (target_w * cos)), int((target_h * cos) + (target_w * sin))
-
-    M[0, 2] += (nW / 2) - (target_w // 2)
-    M[1, 2] += (nH / 2) - (target_h // 2)
+def get_anchor_offset(width, height, point_name):
+    """Maps an anchor string to specific pixel coordinates within the asset."""
+    multipliers = {
+        "top_left":      (0, 0),    "top_middle":    (0.5, 0), "top_right":     (1, 0),
+        "middle_left":   (0, 0.5),  "middle":        (0.5, 0.5), "middle_right":  (1, 0.5),
+        "bottom_left":   (0, 1),    "bottom_middle": (0.5, 1), "bottom_right":  (1, 1)
+    }
+    # Default to center if the name is misspelled
+    mult_x, mult_y = multipliers.get(point_name, (0.5, 0.5))
+    return int(width * mult_x), int(height * mult_y)
 
 
-    rotated = cv2.warpAffine(resized, M, (nW, nH), borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+def blend_onto_frame(background, overlay_part, x, y):
+    """Handles pixel-perfect placement and alpha transparency."""
+    bg_h, bg_w = background.shape[:2]
+    ov_h, ov_w = overlay_part.shape[:2]
+
+    # Find the intersection between the screen and the asset
+    screen_x1, screen_y1 = max(x, 0), max(y, 0)
+    screen_x2, screen_y2 = min(x + ov_w, bg_w), min(y + ov_h, bg_h)
+
+    # Calculate where to cut the asset
+    asset_x1, asset_y1 = max(0, -x), max(0, -y)
+    asset_x2 = asset_x1 + (screen_x2 - screen_x1)
+    asset_y2 = asset_y1 + (screen_y2 - screen_y1)
+
+    if screen_x1 < screen_x2 and screen_y1 < screen_y2:
+        roi = background[screen_y1:screen_y2, screen_x1:screen_x2]
+        asset_slice = overlay_part[asset_y1:asset_y2, asset_x1:asset_x2]
+
+        # Apply alpha blending if the image has 4 channels
+        if asset_slice.shape[2] == 4:
+            alpha = asset_slice[:, :, 3:4] / 255.0
+            color = asset_slice[:, :, :3]
+            background[screen_y1:screen_y2, screen_x1:screen_x2] = (alpha * color + (1 - alpha) * roi).astype(np.uint8)
+        else:
+            background[screen_y1:screen_y2, screen_x1:screen_x2] = asset_slice[:, :, :3]
+
+    return background
 
 
-    p_rotated = M @ np.array([px, py, 1])
-    rot_x, rot_y = int(p_rotated[0]), int(p_rotated[1])
+def overlay(image, asset, face_landmarks, config):
+    if asset is None or face_landmarks is None:
+        return image
 
+    height, width = image.shape[:2]
 
-    x1 = ax - rot_x
-    y1 = ay - rot_y
-    x2, y2 = x1 + nW, y1 + nH
+    # 1. Calculate Face Geometry
+    left_eye, right_eye = face_landmarks[33], face_landmarks[263]
+    anchor_landmark = face_landmarks[config.index]
 
+    target_anchor_px = (int(anchor_landmark.x * width), int(anchor_landmark.y * height))
 
-    img_x1, img_x2 = max(x1, 0), min(x2, w)
-    img_y1, img_y2 = max(y1, 0), min(y2, h)
-    asset_x1, asset_x2 = max(0, -x1), min(nW, w - x1)
-    asset_y1, asset_y2 = max(0, -y1), min(nH, h - y1)
+    # Calculate tilt and size based on eye distance
+    delta_x = (right_eye.x - left_eye.x) * width
+    delta_y = (right_eye.y - left_eye.y) * height
+    eye_distance = math.sqrt(delta_x ** 2 + delta_y ** 2)
+    tilt_angle = math.degrees(math.atan2(delta_y, delta_x))
 
-    if img_x1 >= img_x2 or img_y1 >= img_y2: return overlay_image
+    # 2. Prepare Asset
+    target_w = int(eye_distance * config.ratio)
+    target_h = int(target_w * (asset.shape[0] / asset.shape[1]))
+    resized_asset = cv2.resize(asset, (target_w, target_h))
 
-    overlay_part = rotated[asset_y1:asset_y2, asset_x1:asset_x2]
-    roi = overlay_image[img_y1:img_y2, img_x1:img_x2]
+    # 3. Create Rotation Matrix
+    center = (target_w // 2, target_h // 2)
+    rotation_matrix = cv2.getRotationMatrix2D(center, -tilt_angle, 1.0)
 
-    if overlay_part.shape[2] == 4:
-        alpha = overlay_part[:, :, 3] / 255.0
-        for c in range(3):
-            roi[:, :, c] = (alpha * overlay_part[:, :, c] + (1 - alpha) * roi[:, :, c])
+    # Expand boundaries so the corners don't get cut off during rotation
+    cos = np.abs(rotation_matrix[0, 0])
+    sin = np.abs(rotation_matrix[0, 1])
+    bound_w = int((target_h * sin) + (target_w * cos))
+    bound_h = int((target_h * cos) + (target_w * sin))
 
-    return overlay_image
+    rotation_matrix[0, 2] += (bound_w / 2) - center[0]
+    rotation_matrix[1, 2] += (bound_h / 2) - center[1]
+
+    rotated_asset = cv2.warpAffine(resized_asset, rotation_matrix, (bound_w, bound_h), borderMode=cv2.BORDER_CONSTANT)
+
+    # 4. Final Alignment
+    # Find the local anchor point within the asset and rotate it
+    local_x, local_y = get_anchor_offset(target_w, target_h, config.point)
+    rotated_anchor = rotation_matrix @ np.array([local_x, local_y, 1])
+
+    # Calculate top-left corner for placement
+    top_left_x = target_anchor_px[0] - int(rotated_anchor[0])
+    top_left_y = target_anchor_px[1] - int(rotated_anchor[1])
+
+    return blend_onto_frame(image, rotated_asset, top_left_x, top_left_y)
 
 def get_ear(landmarks, eye_indices, w, h):
     # Map indices to (x, y) coordinates
@@ -101,3 +127,8 @@ BaseOptions = mp.tasks.BaseOptions
 FaceLandmarker = mp.tasks.vision.FaceLandmarker
 FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
+
+hat = cv2.imread("../assets/thug_life_hat.png", cv2.IMREAD_UNCHANGED)
+glasses = cv2.imread("../assets/thug_life_glasses.png", cv2.IMREAD_UNCHANGED)
+blunt = cv2.imread("../assets/thug_life_blunt.png", cv2.IMREAD_UNCHANGED)
+model_path: str = "../models/face_landmarker.task"
