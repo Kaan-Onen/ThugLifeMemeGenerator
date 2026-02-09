@@ -50,7 +50,7 @@ To ensure visual fidelity, the software utilizes the alpha channel of PNG assets
 Install the required dependencies using the Python package manager:
 
 Bash  
-pip install -r requirements.  
+pip install -r requirements.txt  
 
 2. Model and Asset Integration  
 Download the face_landmarker.task file and place it within the models/ directory.
