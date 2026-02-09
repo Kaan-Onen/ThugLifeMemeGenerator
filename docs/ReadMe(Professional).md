@@ -34,15 +34,15 @@ To ensure visual fidelity, the software utilizes the alpha channel of PNG assets
 ## 📂 Project Structure
 
 
-├── .venv/                # Virtual environment for dependency isolation
-├── assets/               # Source assets (transparent PNGs, images, and videos)
-├── docs/                 # Technical documentation and specifications
-├── models/               # Pre-trained MediaPipe task models
-├── src/                  # Source code directory
-│   ├── image_proc.py     # Static image processing logic
-│   ├── video_proc.py     # Real-time video and blink detection logic
-│   └── vision_utils.py   # Coordinate transformation and rendering utilities
-└── requirements.txt      # List of mandatory Python dependencies
+├── .venv/                # Virtual environment for dependency isolation  
+├── assets/               # Source assets (transparent PNGs, images, and videos)  
+├── docs/                 # Technical documentation and specifications  
+├── models/               # Pre-trained MediaPipe task models  
+├── src/                  # Source code directory  
+│   ├── image_proc.py     # Static image processing logic  
+│   ├── video_proc.py     # Real-time video and blink detection logic  
+│   └── vision_utils.py   # Coordinate transformation and rendering utilities  
+└── requirements.txt      # List of mandatory Python dependencies  
 
 
 🚀 Implementation Guide
