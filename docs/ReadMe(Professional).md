@@ -1,16 +1,16 @@
 # Thug Life Meme Generator
 
-A professional-grade computer vision application designed to automate the overlay of "Thug Life" graphical assets onto human faces. Leveraging the **MediaPipe FaceLandmarker** framework, the system ensures high-precision placement through real-time landmark tracking and geometric transformations.
+A professional-grade computer vision application designed to automate the overlay of memes graphical assets onto human faces. Uses the **MediaPipe FaceLandmarker** framework, the system ensures high-precision placement through real-time landmark tracking and geometric transformations.
 
 ---
 
 ## 🛠 Core Features
 
 ### Static Image Processing
-The system analyzes static images to determine facial orientation. Assets are dynamically scaled and rotated based on the inter-ocular distance and the inclination angle of the eyes to ensure a natural fit.
+The system analyzes static images to determine facial orientation. Assets are dynamically scaled and rotated based on the distance and the angle of the eyes to ensure a natural fit.
 
 ### Real-Time Video & Blink Detection
-Utilizing a temporal analysis of facial landmarks, the application detects blink events in video streams. A detected blink serves as the trigger mechanism to initiate the "Thug Life" overlay sequence.
+Utilizing a temporal analysis of facial landmarks, the application detects blink events in video streams. A detected blink serves as the trigger mechanism to initiate meme overlay sequence.
 
 ### Precision Anchoring & Rotation
 Assets are anchored to specific facial indices provided by the MediaPipe mesh. The system calculates the precise rotation matrix using the following geometric relationship:
@@ -18,7 +18,7 @@ Assets are anchored to specific facial indices provided by the MediaPipe mesh. T
 $$\theta = \arctan2(y_{eye\_right} - y_{eye\_left}, x_{eye\_right} - x_{eye\_left})$$
 
 ### Advanced Alpha Blending
-To ensure visual fidelity, the software utilizes the alpha channel of PNG assets. This allows for seamless transparency and professional-grade compositing over the source frames.
+To ensure visual fidelity, the software utilizes the alpha channel of PNG assets. This allows for transparency and professional-grade compositing over the source frames.
 
 ---
 
