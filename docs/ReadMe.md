@@ -39,8 +39,8 @@ To ensure visual fidelity, the software utilizes the alpha channel of PNG assets
 ├── docs/                 # Technical documentation and specifications  
 ├── models/               # Pre-trained MediaPipe task models  
 ├── src/                  # Source code directory  
-│   ├── image_proc.py     # Static image processing logic  
-│   ├── video_proc.py     # Real-time video and blink detection logic  
+│   ├── image.py          # Static image processing logic  
+│   ├── video.py          # Real-time video and blink detection logic  
 │   └── vision_utils.py   # Coordinate transformation and rendering utilities  
 └── requirements.txt      # List of mandatory Python dependencies  
 
